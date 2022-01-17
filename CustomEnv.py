@@ -64,8 +64,8 @@ Conditions
 """
 
 
-
-
+def checkUptrend(prices):
+    pass
 
 
 class TradingEnv(gym.Env):
@@ -193,12 +193,19 @@ class TradingEnv(gym.Env):
         long_stop = self.onBuy and self.is_long_stop(prices[self._current_tick], prices[self.lastBuyLong])
         short_profit = self.onBuyShort and self.is_short_profit(prices[self._current_tick], prices[self.lastBuyShort])
         short_stop = self.onBuyShort and self.is_short_stop(prices[self._current_tick], prices[self.lastBuyShort])
-        print("is_Long_Profit: ", long_profit,"is_Long_Stop: ", long_stop,"is_Short_Profit: ", short_profit,"is_Short_Stop: ", short_stop,)
+        print("is_Long_Profit: ", long_profit,"is_Long_Stop: ", long_stop,"is_Short_Profit: ", short_profit,"is_Short_Stop: ", short_stop)
+
+        #Pass prices
+        trend_stat = checkUptrend(prices)
+        isUptrend = trend_stat == 1
+        isDowntrend = trend_stat == 0
+
+        #
 
         long_sell = False
         short_sell = False
         wait_interval_min = 3
-        wait_interval_max = 15
+        wait_interval_max = 5
         # short_buy = False
         # long_buy = False
 
@@ -382,12 +389,21 @@ class TradingEnv(gym.Env):
 
         if short_sell:
             self._position = Positions.Short
+
+            #Check if Downtrend Result
+            if not isUptrend:
+                pass
+                #Set Chance as per ratio
+            chance = random.random()
             if random.random() > 0.50:
                 self._position = self._position.swap()
                 print("Chance: ", random.random())
             short_sell = False
-        if long_sell and short_sell:
+        if long_sell and not short_sell:
             self._position = Positions.Long
+            if isUptrend:
+                pass
+            chance = random.random()
             if random.random() > 0.50:
                 self._position = self._position.swap()
                 print("Chance: ", random.random())
@@ -406,7 +422,6 @@ class TradingEnv(gym.Env):
             self.sell_interval = 0
         if not self.onBuyShort:
             self.short_sell_interval = 0
-
 
         return observation, step_reward, self._done, info
 
@@ -492,44 +507,7 @@ class TradingEnv(gym.Env):
                         marker='o', markerfacecolor='black', markersize=12)
             else:
                 plt.plot(x, y, color='red', linewidth=3)
-        # for i, tick in enumerate(window_ticks):
-        #     if self._position_history[i] == Positions.Short:
-        #         short_ticks.append(tick)
-        #
-        #         long_ticks.append(-1)
-        #         short_sell_ticks.append(-1)
-        #         long_sell_ticks.append(-1)
-        #
-        #     elif self._position_history[i] == Positions.Long:
-        #         long_ticks.append(tick)
-        #         short_ticks.append(-1)
-        #         short_sell_ticks.append(-1)
-        #         long_sell_ticks.append(-1)
-        #     elif self._position_history[i] == Positions.ShortSell:
-        #         short_sell_ticks.append(tick)
-        #         long_ticks.append(-1)
-        #         short_ticks.append(-1)
-        #         long_sell_ticks.append(-1)
-        #
-        #     elif self._position_history[i] == Positions.LongSell:
-        #         long_sell_ticks.append(tick)
-        #         long_ticks.append(-1)
-        #         short_sell_ticks.append(-1)
-        #         short_ticks.append(-1)
-        #
-        # print("Size: ", len(short_ticks), "Short_Ticks: ", short_ticks)
-        # print("Size: ", len(short_sell_ticks),"ShortSell_Ticks: ", short_sell_ticks)
-        # print("Size: ", len(long_ticks),"Long_Ticks: ", long_ticks)
-        # print("Size: ", len(long_sell_ticks),"LongSell_Ticks: ", long_sell_ticks)
-        #
-        # # plotting the points
-        # # plt.plot(x, y, color='green', linestyle='dashed', linewidth=3,
-        # #          marker='o', markerfacecolor='blue', markersize=12)
-        #
-        # plt.plot(short_ticks, self.prices[short_ticks], 'ro')
-        # plt.plot(long_ticks, self.prices[long_ticks], 'go')
-        # plt.plot(short_sell_ticks, self.prices[short_ticks], 'bo')
-        # plt.plot(long_sell_ticks, self.prices[long_ticks], 'yo')
+
         red_patch = mpatches.Patch(color='red', label='Long')
         green_patch = mpatches.Patch(color='green', label='LongSell')
         blue_patch = mpatches.Patch(color='blue', label='Short')
@@ -537,12 +515,114 @@ class TradingEnv(gym.Env):
         black_patch = mpatches.Patch(color='black', label='Hold')
 
         plt.legend(handles=[red_patch,green_patch,blue_patch,orange_patch,black_patch])
-
+        self.showUniquePatterns(5)
         self.total_profit = self._total_profit
         plt.suptitle(
             "Total Reward: %.6f" % self._total_reward + ' ~ ' +
             "Total Profit: %.6f" % self._total_profit
         )
+
+    # Take prices and put it on a loop and a loop of window to save ups and downs
+    # Count ups and downs in a fixed window  More ups is uptrend else if downtrend else no trend
+    # Return whether Not Ready, Uptrend, Downtrend or No Trend
+
+    def currentTrendType(self, window):
+        prices = self.prices
+        curr = self.current_tick
+        ups = 0
+        downs = 0
+        last_price = None
+
+        for i in range(window):
+            if curr < 0:
+                return "Not Ready"
+            else:
+                curr_price = prices[curr - window + i]
+                print("Last_Price: ", last_price)
+                print("curr_Price: ", curr_price)
+                print("dif: ", last_price - curr_price)
+                if last_price is not None:
+                    if last_price > curr_price:
+                        downs += 1
+                    else:
+                        ups += 1
+        if ups == window * 0.8 or downs == window * 0.2:
+            return "UpTrend"
+        elif ups == window * 0.2 or downs == window * 0.8:
+            return "DownTrend"
+        else:
+            return "No Trend"
+
+        # Figure pattern
+
+        # for i in range(len(prices)):
+        #     for j in range(window):
+
+    #
+    # Another function saves it in an array with the number of ud dataset
+
+    def showPricesTrends(self, window):
+        prices = self.prices
+        curr = 0
+        last_price = None
+        price_trends = []
+        for i in range(len(prices)):
+            slice = []
+            ups = 0
+            downs = 0
+            status = None
+            for j in range(window):
+                if curr < 0:
+                    slice.append(None)
+                curr_price = prices[i - window + j]
+
+                if last_price is not None:
+                    print("Last_Price: ", last_price)
+                    print("curr_Price: ", curr_price)
+                    print("dif: ", last_price - curr_price)
+                    if last_price > curr_price:
+                        downs += 1
+                        slice.append(0)
+                    else:
+                        ups += 1
+                        slice.append(1)
+                last_price = curr_price
+            if ups == window * 0.8 and downs == window * 0.2:
+                status = "UpTrend"
+            elif ups == window * 0.2 and downs == window * 0.8:
+                status = "DownTrend"
+            else:
+                status = "No Trend"
+            print("Trend Shape: ", slice, "Status: ", status)
+            trend = [slice, status]
+            price_trends.append(trend)
+        return price_trends
+
+    # Note all unique patterns in a window or range
+    # List all uniques possibilities of trend pattern (box of ups and downs)
+    # Match with trend prices from last function
+    # print the patterns details
+
+    def showUniquePatterns(self, window):
+        patterns = self.showPricesTrends(window)
+        uni_pattern = []
+
+        for i in range(len(patterns)):
+            pattern = patterns[i][0]
+            status = patterns[i][1]
+            if len(uni_pattern) == 0:
+                uni_pattern.append([pattern, 1, status])
+            matched = False
+            for j in range(len(uni_pattern)):
+                if pattern == uni_pattern[j][0]:
+                    matched = True
+                    uni_pattern[j][1] += 1
+
+            if not matched:
+                uni_pattern.append([pattern, 1, status])
+
+        for i in range(len(uni_pattern)):
+            print("Pattern: ", uni_pattern[i][0], " Status: ", uni_pattern[i][2], " Count: ", uni_pattern[i][1])
 
     def close(self):
         plt.close()

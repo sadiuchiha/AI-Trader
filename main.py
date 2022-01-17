@@ -55,7 +55,7 @@ class MyCustomEnv(StocksEnv):
     _process_data = add_signals
 
 env = MyCustomEnv(df=df, frame_bound=(5,200), window_size=5)
-print("Environment: ",env.signal_features)
+print("Environment: ", env.signal_features)
 
 
 print("action_space: ", env.action_space)
@@ -86,7 +86,7 @@ highest_profit = 0
 highest_loss = 0
 highest_profited_model = None
 
-for x in range(100):
+for x in range(1):
 
     model = A2C('MlpPolicy', env, verbose=1)
     model.learn(total_timesteps=1000,)
