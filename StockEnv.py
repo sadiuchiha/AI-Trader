@@ -157,40 +157,23 @@ class StocksEnv(TradingEnv):
 
         step_reward = 0
         profit_made = False
-        isTrade = self._position == Positions.ShortSell or self._position == Positions.LongSell
+        isTrade = self._position == Positions.ShortSell or Positions.LongSell
         # Conditions for a Buy/Sell/Hold action
-        """
-        if(isTrade):
+
+        if isTrade:
             current_price = self.prices[self._current_tick]
-            last_trade_price = self.prices[self._last_trade_tick]
-            price_diff = current_price - last_trade_price
+            if self._position == Positions.LongSell:
+                last_trade_price = self.prices[self.lastBuyLong]
+                price_diff = current_price - last_trade_price
+                step_reward += price_diff * self.long_acc
 
-            if(self._position == long):
-                step_reward += price_diff/2
+            if self._position == Positions.ShortSell:
+                last_trade_price = self.prices[self.lastBuyShort]
+                price_diff = last_trade_price - current_price
+                step_reward += price_diff * self.short_acc
 
-            if(self._position == longSell):
-                step_reward += price_diff
+        # add hold functionality later
 
-            if(self._position == Short):
-                step_reward += price_diff/2
-
-            if(self._position == ShortSell):
-                step_reward += price_diff
-
-        add hold functionality later    
-
-
-        """
-        # short_acc = isinstance(self.short_acc, int or float)
-        # long_acc = isinstance(self.long_acc, int or float)
-        # if short_acc:
-        #     print("self.long_acc: ", self.short_acc)
-        #     list = self.short_acc[0]
-        #     self.short_acc = self.short_acc[len(list) - 1]
-        # if long_acc:
-        #     print("self.long_acc: ", self.long_acc)
-        #     list = self.long_acc[0]
-        #     self.long_acc = self.long_acc[len(list) - 1]
         current_price = self.prices[self._current_tick]
 
         if self._position == Positions.Long:

@@ -63,11 +63,6 @@ Conditions
     Action(Hold)
 """
 
-
-def checkUptrend(prices):
-    pass
-
-
 class TradingEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
@@ -104,17 +99,23 @@ class TradingEnv(gym.Env):
         self.sell_interval = 0
         self.short_sell_interval = 0
         self.rewards_given = 0
+
         self.reward_multiplier = 1
         self.penalty_multiplier = 1
+
         self.total_profit = None
         self.current_action = Positions.Hold
         self.observation = None
+
         self.long_hold_reward_accumulator = 0
         self.short_hold_reward_accumulator = 0
+
         self.long_order_completed = False
         self.short_order_completed = False
+
         self.long_acc = 0.0
         self.short_acc = 0.0
+        self.trend_stat = None
 
 
 
@@ -195,12 +196,6 @@ class TradingEnv(gym.Env):
         short_stop = self.onBuyShort and self.is_short_stop(prices[self._current_tick], prices[self.lastBuyShort])
         print("is_Long_Profit: ", long_profit,"is_Long_Stop: ", long_stop,"is_Short_Profit: ", short_profit,"is_Short_Stop: ", short_stop)
 
-        #Pass prices
-        trend_stat = checkUptrend(prices)
-        isUptrend = trend_stat == 1
-        isDowntrend = trend_stat == 0
-
-        #
 
         long_sell = False
         short_sell = False
@@ -247,6 +242,13 @@ class TradingEnv(gym.Env):
             default:
             Action(Hold)
         """
+
+        #Pass prices
+        self.trend_stat = self.checkTrendType(5, self._current_tick)
+        isUptrend = self.trend_stat == "UpTrend"
+        isDowntrend = self.trend_stat == "Downtrend"
+        isNoTrend = self.trend_stat == "No Trend Up" or "No Trend Down" or "No Trend lvl"
+
         trade = (action == Actions.Buy.value and self._position == Positions.Long) or \
                 (action == Actions.Sell.value and self._position == Positions.LongSell) or \
                 (action == Actions.ShortBuy.value and self._position == Positions.Short) or \
@@ -254,11 +256,30 @@ class TradingEnv(gym.Env):
                 (self.short_sell_interval < 1) or \
                 (self.sell_interval < 1) or \
                 (long_profit or long_stop) or \
-                (short_profit or short_stop)
+                (short_profit or short_stop) or isUptrend or isDowntrend    #UpTrend and DownTrend not used.
 
         print("Action: ", action, "Position: ", self._position, " Trade: ", trade)
 
         if trade:
+
+            # if self.onBuy and isUptrend and prices[self.lastBuyLong] < prices[self._current_tick]:
+            #     print("Selling Action on UpTrend Occurred")
+            #     print("Sold at ", self.prices[self._current_tick])
+            #     self._position = Positions.LongSell
+            #     self._last_trade_tick = self._current_tick
+            #     long_sell = True
+            #     long_buy = False
+            #     self.onBuy = False
+            #     action = Actions.Sell.value
+            # elif self.onBuyShort and isDowntrend and prices[self.lastBuyLong] > prices[self._current_tick]:
+            #     print("Short Selling Action on DownTrendOccurred")
+            #     print("Sold at ", self.prices[self._current_tick])
+            #     self._position = Positions.ShortSell
+            #     short_sell = True
+            #     short_buy = False
+            #     self.onBuyShort = False
+            #     self._last_trade_tick = self._current_tick
+            #     action = Actions.ShortSell.value
 
             if long_profit or long_stop:
                 print("Selling Regular Action Occurred")
@@ -423,6 +444,7 @@ class TradingEnv(gym.Env):
         if not self.onBuyShort:
             self.short_sell_interval = 0
 
+        print("Current Trend: ", self.trend_stat)
         return observation, step_reward, self._done, info
 
     def _get_observation(self):
@@ -526,32 +548,100 @@ class TradingEnv(gym.Env):
     # Count ups and downs in a fixed window  More ups is uptrend else if downtrend else no trend
     # Return whether Not Ready, Uptrend, Downtrend or No Trend
 
-    def currentTrendType(self, window):
+    def checkTrendType(self, window, index):
         prices = self.prices
-        curr = self.current_tick
+        curr = index
+        print("curr: ", curr)
         ups = 0
         downs = 0
+        lvl = 0
         last_price = None
+        initial_window_price = prices[curr - window]
 
         for i in range(window):
             if curr < 0:
                 return "Not Ready"
             else:
+                last_index = curr - window + i - 1
                 curr_price = prices[curr - window + i]
-                print("Last_Price: ", last_price)
+                # print("Last_Price: ", last_price)
                 print("curr_Price: ", curr_price)
+                if last_price is None:
+                    last_price = prices[last_index]
+                    print("Last_Price: ", last_price)
+                if last_price > curr_price:
+                    downs += 1
+                elif last_price < curr_price:
+                    ups += 1
+                else:
+                    lvl += 1
                 print("dif: ", last_price - curr_price)
-                if last_price is not None:
-                    if last_price > curr_price:
-                        downs += 1
-                    else:
-                        ups += 1
-        if ups == window * 0.8 or downs == window * 0.2:
-            return "UpTrend"
-        elif ups == window * 0.2 or downs == window * 0.8:
-            return "DownTrend"
+                last_price = curr_price
+
+        print("Ups: ", ups, "Downs: ", downs, "Lvl: ", lvl)
+        price_difference = (curr_price - last_price) / 2
+        if ups >= window * 0.8:
+            if initial_window_price < curr_price:
+                print("UpTrend set Followed")
+                return "UpTrend"
+            else:
+                print("UpTrend set Followed but Dropped")
+                return "UpTrend Dropped"
+
+        elif downs >= window * 0.8:
+            if initial_window_price > curr_price:
+                print("DownTrend set Followed")
+                return "DownTrend"
+            else:
+                print("DownTrend set Followed but Rose")
+                return "DownTrend Rose"
         else:
-            return "No Trend"
+
+            if lvl == 0:
+                if ups >= window * 0.6 and downs <= window * 0.4:
+                    if initial_window_price < curr_price:
+                        print("No Trend Up Followed set")
+                        return "No Trend Up"
+                    else:
+                        print("No Trend Up set Dropped")
+                        return "No Trend Up Dropped"
+                elif ups <= window * 0.4 and downs >= window * 0.6:
+                    if initial_window_price > curr_price:
+                        print("No Trend Down Followed set")
+                        return "No Trend Down"
+                    else:
+                        print("No Trend Down set rose")
+                        return "No Trend Down Rose"
+            if lvl < window * 0.8:
+                if ups > downs:
+                    if initial_window_price < curr_price:
+                        print("No Trend Up set")
+                        return "No Trend Up"
+                    else:
+                        print("No Trend Up set Followed Dropped")
+                        return "No Trend Up Dropped"
+                elif ups < downs:
+                    if initial_window_price > curr_price:
+                        print("No Trend Down set")
+                        return "No Trend Down"
+                    else:
+                        print("No Trend Down set Followed rose")
+                        return "No Trend Down Rose"
+                else:
+                    if initial_window_price > curr_price:
+                        print("No Trend lvl set Dropped")
+                        return "No Trend lvl Dropped"
+                    elif initial_window_price > curr_price:
+                        print("No Trend lvl set rose")
+                        return "No Trend lvl Rose"
+                    else:
+                        print("No Trend lvl set")
+                        return "No Trend lvl"
+
+            if lvl <= window:
+                print("No Trend lvl set")
+                return "No Trend lvl"
+
 
         # Figure pattern
 
@@ -566,34 +656,101 @@ class TradingEnv(gym.Env):
         curr = 0
         last_price = None
         price_trends = []
+        window_initial_price = 0.0
+
         for i in range(len(prices)):
+            curr = i
             slice = []
             ups = 0
             downs = 0
+            lvl = 0
             status = None
             for j in range(window):
+                if j == 0:
+                    window_initial_price = prices[i - window + j]
+                last_index = i - window + j - 1
                 if curr < 0:
                     slice.append(None)
                 curr_price = prices[i - window + j]
+                if last_price is None:
+                    last_price = prices[last_index]
 
-                if last_price is not None:
-                    print("Last_Price: ", last_price)
-                    print("curr_Price: ", curr_price)
-                    print("dif: ", last_price - curr_price)
-                    if last_price > curr_price:
-                        downs += 1
-                        slice.append(0)
-                    else:
-                        ups += 1
-                        slice.append(1)
+                print("Last_Price: ", last_price)
+                print("curr_Price: ", curr_price)
+                print("dif: ", last_price - curr_price)
+                if last_price > curr_price:
+                    downs += 1
+                    slice.append("D")
+                elif last_price < curr_price:
+                    ups += 1
+                    slice.append("U")
+                else:
+                    lvl += 1
+                    slice.append("L")
+
                 last_price = curr_price
-            if ups == window * 0.8 and downs == window * 0.2:
-                status = "UpTrend"
-            elif ups == window * 0.2 and downs == window * 0.8:
-                status = "DownTrend"
+            price_difference = (curr_price - window_initial_price) * 0.5
+            print("List Ups: ", ups, "Downs: ", downs, "Lvl: ", lvl)
+            print("Initial_Price: ", window_initial_price, "Current Price: ", curr_price)
+            if ups >= window * 0.8:
+                if window_initial_price < curr_price:
+                    print("UpTrend Followed")
+                    status = "UpTrend"
+                else:
+                    print("UpTrend Followed but Dropped")
+                    status = "UpTrend Dropped"
+            elif downs >= window * 0.8:
+                if window_initial_price > curr_price:
+                    print("DownTrend Followed")
+                    status = "DownTrend"
+                else:
+                    print("DownTrend Followed but rose")
+                    status = "DownTrend Rose"
             else:
-                status = "No Trend"
-            print("Trend Shape: ", slice, "Status: ", status)
+                if lvl == 0:
+                    if ups >= window * 0.6 and downs <= window * 0.4:
+                        if window_initial_price + price_difference < curr_price:
+                            print("No Trend Up Followed")
+                            status = "No Trend Up"
+                        else:
+                            print("No Trend Up Followed but Dropped")
+                            status = "No Trend Up but Dropped"
+                    elif ups <= window * 0.4 and downs >= window * 0.6:
+                        if window_initial_price > curr_price:
+                            print("No Trend Down Followed")
+                            status = "No Trend Down"
+                        else:
+                            print("No Trend Down Followed but rose")
+                            status = "No Trend Down rose"
+                elif lvl < window * 0.8:
+                    if ups > downs:
+                        if window_initial_price < curr_price:
+                            print("No Trend Up Followed")
+                            status = "No Trend Up"
+                        else:
+                            print("No Trend Up Followed but Dropped")
+                            status = "No Trend Up Dropped"
+                    elif ups < downs:
+                        if window_initial_price > curr_price:
+                            print("No Trend Down Followed")
+                            status = "No Trend Down"
+                        else:
+                            print("No Trend Down Followed but rose")
+                            status = "No Trend Down Rose"
+                    else:
+                        if window_initial_price > curr_price:
+                            print("No Trend lvl Followed but rose")
+                            status = "No Trend lvl Rose"
+                        elif window_initial_price < curr_price:
+                            print("No Trend lvl Followed but dropped")
+                            status = "No Trend lvl Dropped"
+                        else:
+                            print("No Trend Lvl Followed")
+                            status = "No Trend lvl"
+                elif lvl <= window:
+                    print("No Trend Lvl Followed")
+                    status = "No Trend lvl"
+                print("Status Set")
             trend = [slice, status]
             price_trends.append(trend)
         return price_trends

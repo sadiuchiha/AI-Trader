@@ -1,4 +1,5 @@
 # Gym stuff
+import datareader as datareader
 import gym
 import gym_anytrading
 #from gym_anytrading.envs import StocksEnv   #Change it to local Class After Change
@@ -20,10 +21,16 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from finta import TA
+import pandas_datareader.data as web
+import datetime as dt
 
 df = pd.read_csv('data/IBM_Testing_Data 1 month.txt')
 
-df.sort_values("Date", ascending=True, inplace=True)
+# start = dt.datetime(2010,1,1,8,30)
+# end = dt.datetime(2022,1,17,5,00)
+# df = web.DataReader("AXP", "yahoo", start, end)
+# df.sort_values("Date", ascending=True, inplace=True)
+# print(df.head())
 
 print(df.head())
 df["Open"] = pd.array(df["Open"], 'float64')
@@ -32,8 +39,47 @@ df["Low"] = pd.array(df["Low"], 'float64')
 df["Close"] = pd.array(df["Close"], 'float64')
 df["Volume"] = df["Volume"]             \
     # .apply(lambda x: float(x.replace(",","")))
+# ****************************************************************************************
+prices = df["Low"]
+print(prices[0])
+window = 5
+curr = 0
+last_price = None
+price_trends = []
+for i in range(len(prices)):
+    slice = []
+    ups = 0
+    downs = 0
+    status = None
 
+    for j in range(window):
+        if curr < 0:
+            slice.append(None)
+        if i+j > len(prices) - window - 1:
+            break
+        curr_price = prices[i + j]
+        # print("Last_Price: ", last_price)
+        # print("curr_Price: ", curr_price)
+        # print("dif: ", last_price - curr_price)
+        if last_price is not None:
+            if last_price > curr_price:
+                downs += 1
+                slice.append(0)
+            else:
+                ups += 1
+                slice.append(1)
+        last_price = curr_price
+    if ups == window * 0.8 and downs == window * 0.2:
+        status = 2
+    elif ups == window * 0.2 and downs == window * 0.8:
+        status = 0
+    else:
+        status = 1
+    print("Trend Shape: ", slice, "Status: ", status)
+    price_trends.append(status)
+# ****************************************************************************************
 
+df['Status'] = price_trends
 df['Date'] = pd.to_datetime(df['Date'])
 # df['']
 print(df.dtypes)
@@ -48,13 +94,13 @@ def add_signals(env):
     start = env.frame_bound[0] - env.window_size
     end = env.frame_bound[1]
     prices = env.df.loc[:, "Low"].to_numpy()[start:end]
-    signal_features = env.df.loc[:, ["Low", "Volume", "SMA", "RSI"]].to_numpy()[start:end]
+    signal_features = env.df.loc[:, ["High", "Volume", "SMA", "RSI", "Status"]].to_numpy()[start:end]
     return prices, signal_features
 
 class MyCustomEnv(StocksEnv):
     _process_data = add_signals
 
-env = MyCustomEnv(df=df, frame_bound=(5,200), window_size=5)
+env = MyCustomEnv(df=df, frame_bound=(5,420), window_size=5)
 print("Environment: ", env.signal_features)
 
 
@@ -86,7 +132,7 @@ highest_profit = 0
 highest_loss = 0
 highest_profited_model = None
 
-for x in range(1):
+for x in range(10):
 
     model = A2C('MlpPolicy', env, verbose=1)
     model.learn(total_timesteps=1000,)
@@ -109,7 +155,7 @@ for x in range(1):
     # model.learn(total_timesteps=100000)
     # model.save("ppo_cartpole")
 
-    env = MyCustomEnv(df=df, frame_bound=(190,210), window_size=5)
+    env = MyCustomEnv(df=df, frame_bound=(410, 480), window_size=5)
 
     obs = env.reset()
     print(obs)
@@ -187,7 +233,7 @@ plt.cla()
 env.render_all()
 plt.show()
 
-env = MyCustomEnv(df=df, frame_bound=(190, 210), window_size=5)
+env = MyCustomEnv(df=df, frame_bound=(410, 480), window_size=5)
 obs = env.reset()
 while True:
 
@@ -208,37 +254,43 @@ plt.show()
 
 print("Highest profit: ", highest_profit, "Highest loss: ", highest_loss)
 
-trade_start = 190
-trade_end = 210
+trade_start = 410
+trade_end = 480
 
-# for times in range(100):
-#
-#     trade_start += 1
-#     trade_end += 1
-#     next_env = MyCustomEnv(df=df, frame_bound=(trade_start, trade_end), window_size=5)
-#     print(next_env.observation)
-#     obs = env.set_for_next_env(next_env)
-#     print(obs)
-#
-#     while True:
-#
-#         action, _states = model.predict(obs)
-#         obs, rewards, done, info = env.step(action)
-#         if done:
-#             print("info", info)
-#             print("Final position: ", env.last_position)
-#             print("State: ", _states)
-#             action, _states = model.predict(obs)
-#             print("Next prediction: ", env.last_position)
-#             break
-#     if trade_start % 5 == 0:
-#         plt.figure(figsize=(15,6))
-#         plt.cla()
-#         env.render_all()
-#         plt.show()
-# print("Highest profit: ", highest_profit, "Highest loss: ", highest_loss)
+print("Chart Loop Starting")
+# env = MyCustomEnv(df=df, frame_bound=(trade_start, trade_end), window_size=5)
+# obs = env.reset()
 
-trade_end += 100
+for times in range(100):
+
+    trade_start += 1
+    trade_end += 1
+    print("Obs: ",obs.shape)
+    next_env = MyCustomEnv(df=df, frame_bound=(trade_start, trade_end), window_size=5)
+    print(next_env.observation)
+    obs = env.set_for_next_env(next_env)
+    print(obs)
+
+    while True:
+
+        action, _states = model.predict(obs)
+        obs, rewards, done, info = env.step(action)
+        if done:
+            print("info", info)
+            print("Final position: ", env.last_position)
+            print("State: ", _states)
+            action, _states = model.predict(obs)
+            print("Next prediction: ", env.last_position)
+            break
+    if trade_start % 5 == 0:
+        plt.figure(figsize=(15,6))
+        plt.cla()
+        env.render_all()
+        plt.show()
+print("Highest profit: ", highest_profit, "Highest loss: ", highest_loss)
+
+trade_start = 410
+trade_end = 830
 
 env = MyCustomEnv(df=df, frame_bound=(trade_start, trade_end), window_size=5)
 obs = env.reset()
