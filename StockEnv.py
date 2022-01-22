@@ -1,6 +1,6 @@
 import numpy as np
 
-from CustomEnv import TradingEnv, Actions, Positions
+from CustomEnvVer2 import TradingEnv, Actions, Positions
 
 
 class StocksEnv(TradingEnv):
