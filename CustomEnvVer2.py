@@ -115,7 +115,7 @@ class TradingEnv(gym.Env):
 
         self.long_acc = 0.0
         self.short_acc = 0.0
-        self.trend_stat = None
+        self.trend_status = None
 
 
 
@@ -143,6 +143,7 @@ class TradingEnv(gym.Env):
         self.short_order_completed = False
         self.long_acc = 0
         self.short_acc = 0
+        self.trend_stat = None
 
 
         return self._get_observation()
@@ -190,12 +191,14 @@ class TradingEnv(gym.Env):
         print("Initially Action: ", action, " Position: ", self._position, " onBuy: ", self.onBuy, " onShortBuy: ", self.onBuyShort)
         print("Tick: ", self._current_tick, "Long Sell Interval: ", self.sell_interval, "Short Sell Interval: ", self.short_sell_interval)
         prices = self.prices
-        long_profit = self.onBuy and self.is_long_profit(prices[self._current_tick], prices[self.lastBuyLong])
-        long_stop = self.onBuy and self.is_long_stop(prices[self._current_tick], prices[self.lastBuyLong])
-        short_profit = self.onBuyShort and self.is_short_profit(prices[self._current_tick], prices[self.lastBuyShort])
-        short_stop = self.onBuyShort and self.is_short_stop(prices[self._current_tick], prices[self.lastBuyShort])
+        curr_price = self.prices[self._current_tick]
+        long_price = prices[self.lastBuyLong]
+        short_price = prices[self.lastBuyShort]
+        long_profit = self.onBuy and self.is_long_profit(curr_price, long_price)
+        long_stop = self.onBuy and self.is_long_stop(curr_price, long_price)
+        short_profit = self.onBuyShort and self.is_short_profit(curr_price, short_price)
+        short_stop = self.onBuyShort and self.is_short_stop(curr_price, short_price)
         print("is_Long_Profit: ", long_profit,"is_Long_Stop: ", long_stop,"is_Short_Profit: ", short_profit,"is_Short_Stop: ", short_stop)
-
 
         long_sell = False
         short_sell = False
@@ -219,10 +222,10 @@ class TradingEnv(gym.Env):
             # elif action == Actions.ShortBuy and not self.onBuyShort and self.onBuy:
             #     self._position = Positions.Short
 
-        if self.short_sell_interval > 0:
-            self.short_sell_interval -= 1
-        if self.sell_interval > 0:
-            self.sell_interval -= 1
+        # if self.short_sell_interval > 0:
+        #     self.short_sell_interval -= 1
+        # if self.sell_interval > 0:
+        #     self.sell_interval -= 1
         # Set Holds setting here
         # Initial Hold-> Buy/ ShortBuy ->
         """
@@ -243,47 +246,36 @@ class TradingEnv(gym.Env):
             Action(Hold)
         """
 
+
         #Pass prices
         self.trend_stat = self.checkTrendType(5, self._current_tick)
         isUptrend = self.trend_stat == "UpTrend"
         isDowntrend = self.trend_stat == "Downtrend"
+        isNoTrendUp = self.trend_stat == "No Trend Up"
+        isNoTrendDown = self.trend_stat == "No Trend Down"
         isNoTrend = self.trend_stat == "No Trend Up" or "No Trend Down" or "No Trend lvl"
+
+        if self._current_tick % 20 == 0:
+            self.trend_status = self.checkTrendType(20, self._current_tick)
+            print("Overall Status: ", self.trend_status)
+
+        print("Current Trend Stat: ", self.trend_stat)
 
         trade = (action == Actions.Buy.value and self._position == Positions.Long) or \
                 (action == Actions.Sell.value and self._position == Positions.LongSell) or \
                 (action == Actions.ShortBuy.value and self._position == Positions.Short) or \
                 (action == Actions.ShortSell.value and self._position == Positions.ShortSell) or \
-                (self.short_sell_interval < 1) or \
-                (self.sell_interval < 1) or \
                 (long_profit or long_stop) or \
-                (short_profit or short_stop) or isUptrend or isDowntrend    #UpTrend and DownTrend not used.
+                (short_profit or short_stop) or isUptrend or isDowntrend or isNoTrendUp or isNoTrendDown
+
 
         print("Action: ", action, "Position: ", self._position, " Trade: ", trade)
 
         if trade:
 
-            # if self.onBuy and isUptrend and prices[self.lastBuyLong] < prices[self._current_tick]:
-            #     print("Selling Action on UpTrend Occurred")
-            #     print("Sold at ", self.prices[self._current_tick])
-            #     self._position = Positions.LongSell
-            #     self._last_trade_tick = self._current_tick
-            #     long_sell = True
-            #     long_buy = False
-            #     self.onBuy = False
-            #     action = Actions.Sell.value
-            # elif self.onBuyShort and isDowntrend and prices[self.lastBuyLong] > prices[self._current_tick]:
-            #     print("Short Selling Action on DownTrendOccurred")
-            #     print("Sold at ", self.prices[self._current_tick])
-            #     self._position = Positions.ShortSell
-            #     short_sell = True
-            #     short_buy = False
-            #     self.onBuyShort = False
-            #     self._last_trade_tick = self._current_tick
-            #     action = Actions.ShortSell.value
-
             if long_profit or long_stop:
                 print("Selling Regular Action Occurred")
-                print("Sold at ", self.prices[self._current_tick])
+                print("Sold at ", curr_price)
                 self._position = Positions.LongSell
                 self._last_trade_tick = self._current_tick
                 long_sell = True
@@ -311,7 +303,7 @@ class TradingEnv(gym.Env):
                     self._last_trade_tick = self._current_tick
                     self.lastBuyLong = self._current_tick
                     self.onBuy = True
-                    self.sell_interval = random.randint(wait_interval_min, wait_interval_max)
+                    # self.sell_interval = random.randint(wait_interval_min, wait_interval_max)
 
                 elif self.onBuy and self._position == Positions.Long:
                     print("Middle Hold")
@@ -326,7 +318,7 @@ class TradingEnv(gym.Env):
                         self._last_trade_tick = self._current_tick
                         self.lastBuyLong = self._current_tick
                         self.onBuy = True
-                        self.sell_interval = random.randint(wait_interval_min, wait_interval_max)
+                        # self.sell_interval = random.randint(wait_interval_min, wait_interval_max)
                     else:
                         print("Inner Hold")
                         self._position = Positions.Hold
@@ -336,15 +328,23 @@ class TradingEnv(gym.Env):
                     self._position = Positions.Hold
             elif action == Actions.Sell.value:
                 print("Long sell action check triggered")
-                if self.onBuy and self.sell_interval < 1:
-
-                    print("Selling Regular Action Occurred")
-                    print("Sold at ", self.prices[self._current_tick])
+                if self.onBuy and isUptrend and curr_price > long_price:
+                    print("Selling isUptrend Action Occurred")
+                    print("Sold at ", curr_price)
                     self._position = Positions.LongSell
                     self._last_trade_tick = self._current_tick
                     long_sell = True
                     long_buy = False
                     self.onBuy = False
+                elif self.onBuy and isNoTrendUp and curr_price > long_price:
+                    print("Selling isNoTrendUp Action Occurred")
+                    print("Sold at ", curr_price)
+                    self._position = Positions.LongSell
+                    self._last_trade_tick = self._current_tick
+                    long_sell = True
+                    long_buy = False
+                    self.onBuy = False
+
                 else:
                     print("Middle Hold")
                     self._position = Positions.Hold
@@ -358,7 +358,7 @@ class TradingEnv(gym.Env):
                     self._last_trade_tick = self._current_tick
                     self.lastBuyShort = self._current_tick
                     self.onBuyShort = True
-                    self.short_sell_interval = random.randint(wait_interval_min,wait_interval_max)
+                    # self.short_sell_interval = random.randint(wait_interval_min,wait_interval_max)
                 elif self.onBuy and self._position == Positions.Long:
                     if not self.onBuyShort:
                         print("Short Buying Action Occurred 2")
@@ -368,7 +368,7 @@ class TradingEnv(gym.Env):
                         self._last_trade_tick = self._current_tick
                         self.lastBuyShort = self._current_tick
                         self.onBuyShort = True
-                        self.short_sell_interval = random.randint(wait_interval_min,wait_interval_max)
+                        # self.short_sell_interval = random.randint(wait_interval_min,wait_interval_max)
                     else:
                         print("Inner Hold")
                         self._position = Positions.Hold
@@ -379,8 +379,15 @@ class TradingEnv(gym.Env):
                     self._position = Positions.Hold
             elif action == Actions.ShortSell.value:
                 print("Short sell action check triggered")
-                if self.onBuyShort and (self.short_sell_interval < 1):
-                    print("Short Regular Selling Action Occurred")
+                if self.onBuyShort and isDowntrend and short_price > curr_price:
+                    print("Short isDowntrend Selling Action Occurred")
+                    self._position = Positions.ShortSell
+                    short_sell = True
+                    short_buy = False
+                    self.onBuyShort = False
+                    self._last_trade_tick = self._current_tick
+                elif self.onBuyShort and isNoTrendDown and short_price > curr_price:
+                    print("Short isNoTrendDown Selling Action Occurred")
                     self._position = Positions.ShortSell
                     short_sell = True
                     short_buy = False
@@ -392,7 +399,6 @@ class TradingEnv(gym.Env):
             else:
                 print("Was set onHold 2nd Top")
                 self._position = Positions.Hold
-            #hold
         if not trade:
             print("No Trade Hold Top")
             self._position = Positions.Hold
@@ -400,34 +406,28 @@ class TradingEnv(gym.Env):
         step_reward = self._calculate_reward(action)
         self._total_reward += step_reward
 
-        # long_hold = False
-        # short_hold = True
-        # long = False
-
         self._update_profit(action)
         print("Position: ", self._position)
         self._position_history.append(self._position)
 
         if short_sell:
             self._position = Positions.Short
-
-            #Check if Downtrend Result
-            if not isUptrend:
-                pass
-                #Set Chance as per ratio
             chance = random.random()
-            if random.random() > 0.50:
+            if self.trend_status == "No Trend Down":
+                chance = 0
+            if chance > 1:
                 self._position = self._position.swap()
-                print("Chance: ", random.random())
+                print("Chance: ", chance)
             short_sell = False
+
         if long_sell and not short_sell:
             self._position = Positions.Long
-            if isUptrend:
-                pass
             chance = random.random()
-            if random.random() > 0.50:
+            if self.trend_status == "No Trend Up":
+                chance = 0
+            if chance > 1:
                 self._position = self._position.swap()
-                print("Chance: ", random.random())
+                print("Chance: ", chance)
             long_sell = False
 
         observation = self._get_observation()
@@ -439,10 +439,10 @@ class TradingEnv(gym.Env):
         )
         self._update_history(info)
 
-        if not self.onBuy:
-            self.sell_interval = 0
-        if not self.onBuyShort:
-            self.short_sell_interval = 0
+        # if not self.onBuy:
+        #     self.sell_interval = 0
+        # if not self.onBuyShort:
+        #     self.short_sell_interval = 0
 
         print("Current Trend: ", self.trend_stat)
         return observation, step_reward, self._done, info
@@ -538,6 +538,7 @@ class TradingEnv(gym.Env):
 
         plt.legend(handles=[red_patch,green_patch,blue_patch,orange_patch,black_patch])
         self.showUniquePatterns(5)
+        self.showOverallPatterns(20)
         self.total_profit = self._total_profit
         plt.suptitle(
             "Total Reward: %.6f" % self._total_reward + ' ~ ' +
@@ -650,6 +651,116 @@ class TradingEnv(gym.Env):
 
     #
     # Another function saves it in an array with the number of ud dataset
+    def showOverallPricesTrends(self, window):
+        prices = self.prices
+        curr = 0
+        last_price = None
+        price_trends = []
+        window_initial_price = 0.0
+
+        for i in range(len(prices)):
+            if i % window == 0: i += window
+            curr = i
+            slice = []
+            ups = 0
+            downs = 0
+            lvl = 0
+            status = None
+            for j in range(window):
+                if j == 0:
+                    window_initial_price = prices[i - window + j]
+                last_index = i - window + j - 1
+                if last_index >= len(prices):
+                    last_index = len(prices) - 1
+                if curr < 0:
+                    slice.append(None)
+                print()
+                print("Current Price index: ", last_index, "Size of Price: ", len(prices))
+                curr_price = prices[last_index]
+
+                if last_price is None:
+                    last_price = prices[last_index]
+
+                print("Last_Price: ", last_price)
+                print("curr_Price: ", curr_price)
+                print("dif: ", last_price - curr_price)
+                if last_price > curr_price:
+                    downs += 1
+                    slice.append("D")
+                elif last_price < curr_price:
+                    ups += 1
+                    slice.append("U")
+                else:
+                    lvl += 1
+                    slice.append("L")
+
+                last_price = curr_price
+            price_difference = (curr_price - window_initial_price) * 0.5
+            print("List Ups: ", ups, "Downs: ", downs, "Lvl: ", lvl)
+            print("Initial_Price: ", window_initial_price, "Current Price: ", curr_price)
+            if ups >= window * 0.8:
+                if window_initial_price < curr_price:
+                    print("UpTrend Followed")
+                    status = "UpTrend"
+                else:
+                    print("UpTrend Followed but Dropped")
+                    status = "UpTrend Dropped"
+            elif downs >= window * 0.8:
+                if window_initial_price > curr_price:
+                    print("DownTrend Followed")
+                    status = "DownTrend"
+                else:
+                    print("DownTrend Followed but rose")
+                    status = "DownTrend Rose"
+            else:
+                if lvl == 0:
+                    if ups >= window * 0.6 and downs <= window * 0.4:
+                        if window_initial_price + price_difference < curr_price:
+                            print("No Trend Up Followed")
+                            status = "No Trend Up"
+                        else:
+                            print("No Trend Up Followed but Dropped")
+                            status = "No Trend Up but Dropped"
+                    elif ups <= window * 0.4 and downs >= window * 0.6:
+                        if window_initial_price > curr_price:
+                            print("No Trend Down Followed")
+                            status = "No Trend Down"
+                        else:
+                            print("No Trend Down Followed but rose")
+                            status = "No Trend Down rose"
+                elif lvl < window * 0.8:
+                    if ups > downs:
+                        if window_initial_price < curr_price:
+                            print("No Trend Up Followed")
+                            status = "No Trend Up"
+                        else:
+                            print("No Trend Up Followed but Dropped")
+                            status = "No Trend Up Dropped"
+                    elif ups < downs:
+                        if window_initial_price > curr_price:
+                            print("No Trend Down Followed")
+                            status = "No Trend Down"
+                        else:
+                            print("No Trend Down Followed but rose")
+                            status = "No Trend Down Rose"
+                    else:
+                        if window_initial_price > curr_price:
+                            print("No Trend lvl Followed but rose")
+                            status = "No Trend lvl Rose"
+                        elif window_initial_price < curr_price:
+                            print("No Trend lvl Followed but dropped")
+                            status = "No Trend lvl Dropped"
+                        else:
+                            print("No Trend Lvl Followed")
+                            status = "No Trend lvl"
+                elif lvl <= window:
+                    print("No Trend Lvl Followed")
+                    status = "No Trend lvl"
+                print("Status Set")
+            if i % window == 0:
+                trend = [slice, status]
+                price_trends.append(trend)
+        return price_trends
 
     def showPricesTrends(self, window):
         prices = self.prices
@@ -780,6 +891,19 @@ class TradingEnv(gym.Env):
 
         for i in range(len(uni_pattern)):
             print("Pattern: ", uni_pattern[i][0], " Status: ", uni_pattern[i][2], " Count: ", uni_pattern[i][1])
+
+    def showOverallPatterns(self, window):
+        patterns = self.showOverallPricesTrends(window)
+        overall_trends = []
+
+        for i in range(len(patterns)):
+            pattern = patterns[i][0]
+            status = patterns[i][1]
+            overall_trends.append([pattern, status])
+
+        for i in range(len(overall_trends)):
+            print("Pattern: ", overall_trends[i][0], " Status: ", overall_trends[i][1])
+        print("Length of Pattern: ", len(overall_trends))
 
     def close(self):
         plt.close()

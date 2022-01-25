@@ -43,8 +43,6 @@ class StocksEnv(TradingEnv):
             sell = current_price + (current_price * self.trade_fee_bid_percent)
             print("With Fee Current Sell: ", current_price)
 
-
-
             if self._position == Positions.LongSell:
                 print("Long Sell Profit/Loss calculation")
                 print("Sell price: ", self.prices[self.lastBuyLong])
@@ -102,7 +100,7 @@ class StocksEnv(TradingEnv):
             profit = profit[0][len(profit[0]) - 1]
         if self.lastBuyLong is None:
             return False
-        elif profit < 0.04:
+        elif profit < 0.02:
             return False
         else:
             return True
@@ -116,7 +114,7 @@ class StocksEnv(TradingEnv):
             profit = profit[0][len(profit[0]) - 1]
         if self.lastBuyShort is None:
             return False
-        elif profit < 0.04:
+        elif profit < 0.02:
             return False
         else:
             return True
@@ -129,7 +127,7 @@ class StocksEnv(TradingEnv):
             stop = stop[0][len(stop[0]) - 1]
         if self.lastBuyLong is None:
             return False
-        elif stop > -0.025:
+        elif stop > -0.010:
             return False
         else:
             return True
@@ -142,7 +140,7 @@ class StocksEnv(TradingEnv):
             stop = stop[0][len(stop[0]) - 1]
         if self.lastBuyShort is None:
             return False
-        elif stop > -0.025:
+        elif stop > -0.010:
             return False
         else:
             return True
