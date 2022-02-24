@@ -13,8 +13,8 @@ class StocksEnv(TradingEnv):
         self.reward_multiplier = 1
         self.penalty_multiplier = 1
 
-        self.trade_fee_bid_percent = 0.0 #0.01  # unit
-        self.trade_fee_ask_percent = 0.0 #0.005  # unit
+        self.trade_fee_bid_percent = 0.01  # unit
+        self.trade_fee_ask_percent = 0.005  # unit
 
     def _process_data(self):
         prices = self.df.loc[:, 'Close'].to_numpy()
@@ -29,10 +29,10 @@ class StocksEnv(TradingEnv):
 
     def _update_profit(self, action):
 
-        isTrade = (action == Actions.Buy.value and self._position == Positions.Short) or \
-                  (action == Actions.Sell.value and self._position == Positions.Long) or \
-                  (action == Actions.ShortBuy.value and self._position == Positions.Short) or \
-                  (action == Actions.ShortSell.value and self._position == Positions.ShortSell)
+        isTrade = action == Actions.Buy.value  or \
+                  action == Actions.Sell.value  or \
+                  action == Actions.ShortBuy.value  or \
+                  action == Actions.ShortSell.value
 
         if isTrade or self._done:
             current_price = self.prices[self._current_tick]

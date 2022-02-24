@@ -24,6 +24,7 @@ from finta import TA
 import pandas_datareader.data as web
 import datetime as dt
 
+slice_len = 1500
 df = pd.read_csv('data/IBM_Testing_Data 1 month.txt')
 
 # start = dt.datetime(2010,1,1,8,30)
@@ -100,7 +101,7 @@ def add_signals(env):
 class MyCustomEnv(StocksEnv):
     _process_data = add_signals
 
-env = MyCustomEnv(df=df, frame_bound=(5,420), window_size=5)
+env = MyCustomEnv(df=df, frame_bound=(5,slice_len), window_size=5)
 print("Environment: ", env.signal_features)
 
 
@@ -155,7 +156,7 @@ for x in range(10):
     # model.learn(total_timesteps=100000)
     # model.save("ppo_cartpole")
 
-    env = MyCustomEnv(df=df, frame_bound=(410, 480), window_size=5)
+    env = MyCustomEnv(df=df, frame_bound=(slice_len + 10, slice_len + 80), window_size=5)
 
     obs = env.reset()
     print(obs)
@@ -233,7 +234,7 @@ plt.cla()
 env.render_all()
 plt.show()
 
-env = MyCustomEnv(df=df, frame_bound=(410, 480), window_size=5)
+env = MyCustomEnv(df=df, frame_bound=(slice_len + 10, slice_len + 80), window_size=5)
 obs = env.reset()
 while True:
 
@@ -254,8 +255,8 @@ plt.show()
 
 print("Highest profit: ", highest_profit, "Highest loss: ", highest_loss)
 
-trade_start = 410
-trade_end = 480
+trade_start = slice_len + 10
+trade_end = slice_len + 80
 
 print("Chart Loop Starting")
 # env = MyCustomEnv(df=df, frame_bound=(trade_start, trade_end), window_size=5)
@@ -289,8 +290,8 @@ for times in range(100):
         plt.show()
 print("Highest profit: ", highest_profit, "Highest loss: ", highest_loss)
 
-trade_start = 410
-trade_end = 830
+trade_start = slice_len + 10
+trade_end = slice_len + 430
 
 env = MyCustomEnv(df=df, frame_bound=(trade_start, trade_end), window_size=5)
 obs = env.reset()
