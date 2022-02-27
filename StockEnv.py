@@ -13,10 +13,18 @@ class StocksEnv(TradingEnv):
         self.reward_multiplier = 1
         self.penalty_multiplier = 1
 
-        self.trade_fee_bid_percent = 0.01  # unit
-        self.trade_fee_ask_percent = 0.005  # unit
+        self.trade_fee_bid_percent = 0.0 #0.01  # unit
+        self.trade_fee_ask_percent = 0.0 #0.005  # unit
+
+    def get_df(self):
+        return self.df
+    def get_window_size(self):
+        return self.window_size
+    def get_frame_bound(self):
+        return self.frame_bound
 
     def _process_data(self):
+
         prices = self.df.loc[:, 'Close'].to_numpy()
 
         prices[self.frame_bound[0] - self.window_size]  # validate index
@@ -410,5 +418,7 @@ class StocksEnv(TradingEnv):
         return profit
 
     # def predict_next(self, ):
+    def setConditions(self, conditions):
+        self.conditions = conditions
 
 

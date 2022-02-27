@@ -1,9 +1,9 @@
 # Gym stuff
-import datareader as datareader
-import gym
-import gym_anytrading
-#from gym_anytrading.envs import StocksEnv   #Change it to local Class After Change
-from stable_baselines3.common.noise import NormalActionNoise
+# import datareader as datareader
+# import gym
+# import gym_anytrading
+# #from gym_anytrading.envs import StocksEnv   #Change it to local Class After Change
+# from stable_baselines3.common.noise import NormalActionNoise
 
 from StockEnv import StocksEnv
 
@@ -23,6 +23,8 @@ from matplotlib import pyplot as plt
 from finta import TA
 import pandas_datareader.data as web
 import datetime as dt
+
+from function import FunctionMaker
 
 slice_len = 1500
 df = pd.read_csv('data/IBM_Testing_Data 1 month.txt')
@@ -98,13 +100,20 @@ def add_signals(env):
     signal_features = env.df.loc[:, ["High", "Volume", "SMA", "RSI", "Status"]].to_numpy()[start:end]
     return prices, signal_features
 
+trend_window = 5
+
 class MyCustomEnv(StocksEnv):
-    _process_data = add_signals
+     _process_data = add_signals
+
+
+
 
 env = MyCustomEnv(df=df, frame_bound=(5,slice_len), window_size=5)
+function = FunctionMaker()
+unique_frames = env.makeUniqueTrendFrame(window=trend_window)
+function.new(unique_frames[0], unique_frames[1], env.makeTrendFrame(window=trend_window))
+env.setConditions(function.conditions)
 print("Environment: ", env.signal_features)
-
-
 print("action_space: ", env.action_space)
 
 state = env.reset()
@@ -116,11 +125,58 @@ while True:
         print("info", info)
         print("Final position: ", env.last_position)
         break
-
 plt.figure(figsize=(15, 6))
 plt.cla()
 env.render_all()
 plt.show()
+# steps = len(function.indexes)
+# for i in range(steps):
+#     function.updateCondition(env.total_profit, env.num_trades)
+#     env = MyCustomEnv(df=df, frame_bound=(5, slice_len), window_size=5)
+#     env.setConditions(function.conditions)
+#     print("Environment: ", env.signal_features)
+#     print("action_space: ", env.action_space)
+#
+#     state = env.reset()
+#     while True:
+#         action = env.action_space.sample()
+#         print(action)
+#         n_state, reward, done, info = env.step(action)
+#         if done:
+#             print("info", info)
+#             print("Final position: ", env.last_position)
+#             break
+#     print("Profits: ", function.profit, "Trades: ", function.trade)
+#     if i == steps-1:
+#         break
+#
+#
+#
+# # function.profit = env.total_profit
+# # function.Trades = env.num_trades
+#
+# function.updateCondition(env.total_profit,env.num_trades)
+# env = MyCustomEnv(df=df, frame_bound=(5,slice_len), window_size=5)
+# env.setConditions(function.conditions)
+# print("Environment: ", env.signal_features)
+# print("action_space: ", env.action_space)
+#
+# state = env.reset()
+# while True:
+#     action = env.action_space.sample()
+#     print(action)
+#     n_state, reward, done, info = env.step(action)
+#     if done:
+#         print("info", info)
+#         print("Final position: ", env.last_position)
+#         break
+# function.profit = env.total_profit
+# function.Trades = env.num_trades
+# print("Profits: ", function.profit, "Trades: ", function.trade)
+# plt.figure(figsize=(15, 6))
+# plt.cla()
+# env.render_all()
+# plt.show()
 
 env_maker = lambda: env
 env = DummyVecEnv([env_maker])
@@ -157,6 +213,7 @@ for x in range(10):
     # model.save("ppo_cartpole")
 
     env = MyCustomEnv(df=df, frame_bound=(slice_len + 10, slice_len + 80), window_size=5)
+    env.setConditions(function.conditions)
 
     obs = env.reset()
     print(obs)
@@ -235,6 +292,7 @@ env.render_all()
 plt.show()
 
 env = MyCustomEnv(df=df, frame_bound=(slice_len + 10, slice_len + 80), window_size=5)
+env.setConditions(function.conditions)
 obs = env.reset()
 while True:
 
@@ -294,6 +352,7 @@ trade_start = slice_len + 10
 trade_end = slice_len + 430
 
 env = MyCustomEnv(df=df, frame_bound=(trade_start, trade_end), window_size=5)
+env.setConditions(function.conditions)
 obs = env.reset()
 while True:
 

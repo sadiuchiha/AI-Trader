@@ -71,6 +71,7 @@ class TradingEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self, df, window_size):
+        self.conditions = None
         self.num_trades = 0
         self.trend_window = 5
         self.patternShortSellCondition = None
@@ -138,10 +139,10 @@ class TradingEnv(gym.Env):
         self.long_acc = 0.0
         self.short_acc = 0.0
         self.trend_status = None
-        function = FunctionMaker()
-        unique_frames = self.makeUniqueTrendFrame(self.trend_window)
-        function.new(unique_frames[0], unique_frames[1], self.makeTrendFrame(self.trend_window))
-        self.conditions = function.conditions
+        # function = FunctionMaker()
+        # unique_frames = self.makeUniqueTrendFrame(self.trend_window)
+        # function.new(unique_frames[0], unique_frames[1], self.makeTrendFrame(self.trend_window))
+        # self.conditions = function.conditions
 
 
     def seed(self, seed=None):
@@ -630,11 +631,12 @@ class TradingEnv(gym.Env):
         black_patch = mpatches.Patch(color='black', label='Hold')
 
         plt.legend(handles=[red_patch,green_patch,blue_patch,orange_patch,black_patch])
-        self.showOverallPatterns(50)
-        self.showAllPatterns(5)
-        self.showTrendFrame(5)
+        # self.showOverallPatterns(50)
+        # self.showAllPatterns(5)
+        # self.showTrendFrame(5)
         # self.showUniquePatterns(5)
         print("Number of trades: ", self.num_trades)
+
 
         self.total_profit = self._total_profit
         plt.suptitle(
@@ -730,6 +732,8 @@ class TradingEnv(gym.Env):
             initial_index = trend_frames[i][2][1]
             last_index = trend_frames[i][3][1]
             dif = trend_frames[i][1]
+            trend_type = self.checkTrendFrame(dif)
+
             frame = trend_frames[i][0]
             if i > window:
                 previous_frame = trend_frames[i-1][0]
@@ -738,17 +742,18 @@ class TradingEnv(gym.Env):
             indexes = [[initial_index, last_index, dif, previous_frame]]
 
             if len(uni_frame) == 0:
-                uni_frame.append([frame, 0, indexes])
+                uni_frame.append([frame, 0, indexes, [trend_type]])
             matched = False
             for j in range(len(uni_frame)):
                 if frame == uni_frame[j][0]:
                     matched = True
                     uni_frame[j][1] += 1
+                    uni_frame[j][3].append(trend_type)
                     uni_frame[j][2].append(indexes)
                     indexes = uni_frame[j][2]
                     uni_frame[j][2] = indexes
             if not matched:
-                uni_frame.append([frame, 1, indexes])
+                uni_frame.append([frame, 1, indexes,[trend_type]])
 
         for i in range(len(uni_frame)):
             order_pos.append([i, uni_frame[i][1]])
@@ -762,14 +767,15 @@ class TradingEnv(gym.Env):
             # print("Status: ", uni_frame[index][0], " Count: ", uni_frame[index][1], " Indexes: ", uni_frame[index][2])
             print("Status: ", uni_frame[index][0], " Count: ", uni_frame[index][1])
 
-        if self.created_pdf == True:
-            ch = "n"
-        else:
-            ch = input("Create Pdfs of chart? y/n ")
-            if ch == "n":
-                self.created_pdf = True
-        if ch == "y":
-            self.showPatternChart(window, initial_index, uni_pattern=uni_frame, indexes=order_pos)
+
+        # if self.created_pdf == True:
+        #     ch = "n"
+        # else:
+        #     ch = input("Create Pdfs of chart? y/n ")
+        #     if ch == "n":
+        #         self.created_pdf = True
+        # if ch == "y":
+        #     self.showPatternChart(window, initial_index, uni_pattern=uni_frame, indexes=order_pos)
 
         return [uni_frame, order_pos]
 
@@ -1663,3 +1669,11 @@ class TradingEnv(gym.Env):
         self._last_trade_tick = self._current_tick
         action = Actions.ShortSell.value
         self.short_order_completed = True
+
+    def checkTrendFrame(self, dif):
+        if dif > 0:
+            return "UpTrend"
+        elif dif < 0:
+            return "DownTrend"
+        else:
+            return "lvl"
